@@ -1,0 +1,315 @@
+{
+  "Globalconfig": {
+    "ip": "192.168.0.135",
+    "port": 1884,
+    "user": "user",
+    "password": "password",
+    "userPrefix": "DatabaseProxy",
+    "DatabaseUri": "Fileserver",
+    "DatabaseUser": "MQTTClient",
+    "DatabasePassword": "dbpassword",
+    "DatabaseName": "HomeData"
+  },
+  "Topics": [
+    {
+      "name": "shellies/#",
+      "ip": "192.168.0.135",
+      "port": 1884,
+      "user": "pi",
+      "password": "m1$z047",
+      "DBTable": "Data",
+      "ignore": [ "announce", "info" ],
+      "contenttype": "value",
+      "mappings": [
+        {
+          "Input": "shellies/././.",
+          "Output": "-/Location/Name/Category"
+        },
+        {
+          "Input": "shellies/././././.",
+          "Output": "-/Location/Name/Function/FunctionIndex/Category"
+        },
+        {
+          "Input": "shellies/./././.",
+          "Output": "-/Location/Name/Function/Category"
+        }
+      ]
+    },
+    {
+      "name": "TH/#",
+      "ignore": [],
+      //"TimeOut": {
+      //  "TimeOutTime": 30
+      //},
+      "contenttype": "value",
+      "mappings": [
+        {
+          "DBTable": "Temperaturen",
+          "Input": "TH/./temperature",
+          "Output": "-/Name/%Category%",
+          "TimeOut": {
+            "TimeOutTime": 60
+          }
+        },
+        {
+          "DBTable": "Humidity",
+          "Input": "TH/./values",
+          "Output": "-/Name/%Category%",
+          "TimeOut": {
+            "TimeOutTime": 30
+          },
+          "Regex": "^[0-9]+.[0-9]+"
+        }
+      ]
+    },
+    {
+      "name": "Plugs/#",
+      "ignore": [],
+      "contenttype": "json",
+      "mappings": [
+        {
+          "Extras": [
+            {
+              "Override": "true",
+              "Target": "Name",
+              "value": "123123"
+            }
+          ],
+          "DBTable": "Data",
+          "Input": "Plugs/./.",
+          "output": "-/Name/Category"
+        }
+      ],
+      "JSONMappings": [
+        {
+          "DBTable": "Data",
+          "input": "Plugs/./SENSOR",
+          "output": "-/Name/Function",
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            },
+            {
+              "Target": "Category",
+              "Output": "Current",
+              "value": "ENERGY.Current"
+            },
+            {
+              "Target": "Category",
+              "Output": "Total",
+              "value": "ENERGY.Total"
+            },
+            {
+              "Target": "Category",
+              "Output": "Today",
+              "value": "ENERGY.Today"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/Plug1/SENSOR",
+          "output": "-/Name/Function",
+          "Extras": [
+            {
+              "Override": "true",
+              "Target": "Location",
+              "value": "Freezer"
+            }
+          ],
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            },
+            {
+              "Target": "Category",
+              "Output": "Current",
+              "value": "ENERGY.Current"
+            },
+            {
+              "Target": "Category",
+              "Output": "Total",
+              "value": "ENERGY.Total"
+            },
+            {
+              "Target": "Category",
+              "Output": "Today",
+              "value": "ENERGY.Today"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/Plug2/SENSOR",
+          "output": "-/Name/Function",
+          "Extras": [
+            {
+              "Override": "true",
+              "Target": "Location",
+              "value": "Server"
+            }
+          ],
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            },
+            {
+              "Target": "Category",
+              "Output": "Current",
+              "value": "ENERGY.Current"
+            },
+            {
+              "Target": "Category",
+              "Output": "Total",
+              "value": "ENERGY.Total"
+            },
+            {
+              "Target": "Category",
+              "Output": "Today",
+              "value": "ENERGY.Today"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/Plug3/SENSOR",
+          "output": "-/Name/Function",
+          "Extras": [
+            {
+              "Override": "true",
+              "Target": "Location",
+              "value": "RedBox"
+            }
+          ],
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            },
+            {
+              "Target": "Category",
+              "Output": "Current",
+              "value": "ENERGY.Current"
+            },
+            {
+              "Target": "Category",
+              "Output": "Total",
+              "value": "ENERGY.Total"
+            },
+            {
+              "Target": "Category",
+              "Output": "Today",
+              "value": "ENERGY.Today"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/Plug4/SENSOR",
+          "output": "-/Name/Function",
+          "Extras": [
+            {
+              "Override": "true",
+              "Target": "Location",
+              "value": "Living"
+            }
+          ],
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            },
+            {
+              "Target": "Category",
+              "Output": "Current",
+              "value": "ENERGY.Current"
+            },
+            {
+              "Target": "Category",
+              "Output": "Total",
+              "value": "ENERGY.Total"
+            },
+            {
+              "Target": "Category",
+              "Output": "Today",
+              "value": "ENERGY.Today"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/./SENSOR/Test/yoMama",
+          "output": "-/Name/Function",
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Power",
+              "value": "ENERGY.Power"
+            },
+            {
+              "Target": "Category",
+              "Output": "Voltage",
+              "value": "ENERGY.Voltage"
+            }
+          ]
+        },
+        {
+          "DBTable": "Data",
+          "input": "Plugs/./STATE",
+          "output": "-/Name/Function",
+          "Extras": [
+            {
+              "Target": "Location",
+              "value": "Plugs"
+            },
+            {
+              "Override": "false",
+              "Target": "Name",
+              "value": "123123"
+            }
+          ],
+          "JSONMappingCreterias": [
+            {
+              "Target": "Category",
+              "Output": "Signal",
+              "value": "Wifi.Signal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
