@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="ProductionConfig.json" />
     <None Include="SampleConfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
