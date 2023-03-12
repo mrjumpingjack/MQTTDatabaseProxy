@@ -30,13 +30,13 @@ namespace MQTTDatabaseProxyService
         protected override void OnStart(string[] args)
         {
             string ConfigPath = Path.Combine(AppContext.BaseDirectory, "ProductionConfig.json");
-            MQTTDatabaseProxyCore.Log += HomeMQTTDatabaseProxyCore_Log;
+            MQTTDatabaseProxyCore.Log += MQTTDatabaseProxyCore_Log;
             MQTTDatabaseProxyCore.Init(ConfigPath);
         }
 
-        private void HomeMQTTDatabaseProxyCore_Log(object sender, string[] e)
+        private void MQTTDatabaseProxyCore_Log(object sender, LogEventArgs e)
         {
-            if (Convert.ToBoolean(e[1]) == false)
+            if (!Convert.ToBoolean(e.Critical))
             {
                 if (!Directory.Exists(LogFilePath))
                 {
@@ -44,12 +44,12 @@ namespace MQTTDatabaseProxyService
                 }
                 using (StreamWriter sw = new StreamWriter(Path.Combine(LogFilePath, "Log.txt"), true))
                 {
-                    sw.WriteLine(e[0]);
+                    sw.WriteLine(e.Message);
                 }
             }
             else
             {
-                this.EventLog.WriteEntry(e[0], EventLogEntryType.Information);
+                this.EventLog.WriteEntry(e.Message, EventLogEntryType.Information);
             }
         }
 

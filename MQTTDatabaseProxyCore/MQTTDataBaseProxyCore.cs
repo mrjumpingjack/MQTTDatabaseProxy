@@ -17,19 +17,37 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace MQTTDatabaseProxyCore
 {
+
+    public class LogEventArgs : EventArgs
+    {
+        public string Message { get; set; }
+        public bool Critical { get; set; }
+
+        public LogEventArgs()
+        {
+        }
+
+        public LogEventArgs(string message, bool critical)
+        {
+            Message = message;
+            Critical = critical;
+        }
+    }
+
+
     public class MQTTDatabaseProxyCore
     {
         private IMqttClient client;
         public Config config;
 
-        public event EventHandler<string[]> Log;
+        public event EventHandler<LogEventArgs> Log;
 
         protected virtual void OnLog(String e, bool critical = false)
         {
-            EventHandler<string[]> handler = Log;
+            EventHandler<LogEventArgs> handler = Log;
             if (handler != null)
             {
-                handler(this, new string[] {e,critical.ToString()});
+                handler(this, new LogEventArgs(e,critical));
             }
         }
 
@@ -68,10 +86,10 @@ namespace MQTTDatabaseProxyCore
                         await SubscribeToTopicAsync(topic.Ip, topic.Port, topic.User, topic.Password, topic.Name, config.Globalconfig.UserPrefix);
                     }
                 else
-                    Log(this, new string[] { "No topics found in config file.", "true" });
+                    Log(this, new LogEventArgs("No topics found in config file.", true));
             }
             else
-                Log(this, new string[] { "No config found in config file.", "true" });
+                Log(this, new LogEventArgs("No config found in config file.", true));
         }
 
         private Task Client_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
@@ -132,11 +150,6 @@ namespace MQTTDatabaseProxyCore
                 string TopicName = arg.ApplicationMessage.Topic.ToString();
                 string payload = arg.ApplicationMessage.ConvertPayloadToString();
 
-                //DEBUG ONLY
-                //if (!TopicName.Contains("LWT"))
-                //    return Task.CompletedTask;
-
-
 
                 List<string> IncommingTopicParts = TopicName.Split('/').ToList();
                 IncommingTopicParts.Reverse();
@@ -182,8 +195,6 @@ namespace MQTTDatabaseProxyCore
                         OnLog("Blocked because of time out: " + String.Join("/", IncommingTopicParts) + ": " + payload);
                         return Task.CompletedTask;
                     }
-
-
 
 
                 foreach (var ipart in IncommingTopicParts)
