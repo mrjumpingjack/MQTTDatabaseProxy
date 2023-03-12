@@ -38,9 +38,9 @@
     {
       "name": "TH/#",
       "ignore": [],
-      //"TimeOut": {
-      //  "TimeOutTime": 30
-      //},
+      "TimeOut": {
+        "TimeOutTime": 30
+      },
       "contenttype": "value",
       "mappings": [
         {

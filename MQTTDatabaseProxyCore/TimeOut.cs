@@ -10,7 +10,6 @@ namespace MQTTDatabaseProxyCore
 
         public TimeOut( int timeOutTime)
         {
-
             TimeOutTime = timeOutTime;
         }
         

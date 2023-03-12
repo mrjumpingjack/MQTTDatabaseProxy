@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Data.OleDb;
+using System.Diagnostics.Eventing.Reader;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -32,6 +33,7 @@ namespace MQTTDatabaseProxyCore
             }
         }
 
+        List<TimeOut> TimeOuts = new List<TimeOut>();
 
         public void Init(string ConfigPath)
         {
@@ -58,10 +60,18 @@ namespace MQTTDatabaseProxyCore
         private async void Connect()
         {
             OnLog("Client connecting...");
-            foreach (var topic in config.Topics)
+            if (config != null)
             {
-                await SubscribeToTopicAsync(topic.Ip, topic.Port, topic.User, topic.Password, topic.Name, config.Globalconfig.UserPrefix);
+                if (config.Topics.Count > 0)
+                    foreach (var topic in config.Topics)
+                    {
+                        await SubscribeToTopicAsync(topic.Ip, topic.Port, topic.User, topic.Password, topic.Name, config.Globalconfig.UserPrefix);
+                    }
+                else
+                    Log(this, new string[] { "No topics found in config file.", "true" });
             }
+            else
+                Log(this, new string[] { "No config found in config file.", "true" });
         }
 
         private Task Client_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
@@ -84,8 +94,6 @@ namespace MQTTDatabaseProxyCore
 
             return true;
         }
-
-
 
 
         public async Task SubscribeToTopicAsync(string brokerAddress, int port, string username, string password, string topic, string UserPrefix)
@@ -124,7 +132,8 @@ namespace MQTTDatabaseProxyCore
                 string TopicName = arg.ApplicationMessage.Topic.ToString();
                 string payload = arg.ApplicationMessage.ConvertPayloadToString();
 
-                //if (!TopicName.Contains("SENSOR"))
+                //DEBUG ONLY
+                //if (!TopicName.Contains("LWT"))
                 //    return Task.CompletedTask;
 
 
@@ -166,14 +175,15 @@ namespace MQTTDatabaseProxyCore
                     }
                 }
 
+
                 if (SelectedTopic.TimeOut != null)
-                {
                     if (!SelectedTopic.TimeOut.IsTime())
                     {
                         OnLog("Blocked because of time out: " + String.Join("/", IncommingTopicParts) + ": " + payload);
                         return Task.CompletedTask;
                     }
-                }
+
+
 
 
                 foreach (var ipart in IncommingTopicParts)
@@ -195,121 +205,13 @@ namespace MQTTDatabaseProxyCore
                 }
                 else if (SelectedTopic.ContentType == "json")
                 {
-                    try
-                    {
-                        Dictionary<string, string> Result = new Dictionary<string, string>();
-
-                        var SelectedMapping = GetMatchingJSONMapping(SelectedTopic, SelectedTopic.JSONMappings, IncommingTopicParts, payload);
-
-                        dynamic JSONPayload = JsonConvert.DeserializeObject(payload);
-
-                        if (String.IsNullOrEmpty(SelectedTopic.DBTable))
-                            SelectedTopic.DBTable = SelectedMapping.DBTable;
-
-
-
-                        if (SelectedMapping.TimeOut != null)
-                        {
-                            if (!SelectedMapping.TimeOut.IsTime())
-                            {
-                                OnLog("Blocked because of time out: " + String.Join("/", IncommingTopicParts) + ": " + payload);
-                                return Task.CompletedTask;
-                            }
-                            else
-                                SelectedMapping.TimeOut.LastTime = DateTime.Now;
-                        }
-
-
-                        var OParts = SelectedMapping.Output.Split('/').ToList();
-                        var IParts = SelectedMapping.Input.Split('/').ToList();
-
-
-                        foreach (var opart in OParts)
-                        {
-                            Result.Add(opart, "");
-                        }
-
-
-                        for (int i = IncommingTopicParts.Count - 1; i >= 0; i--)
-                        {
-                            if (IParts[i] == "." || IParts[i] == IncommingTopicParts[i])
-                            {
-                                Result[OParts[i]] = IncommingTopicParts[i];
-                            }
-                            else if (IParts[i] == "-")
-                            {
-                                break;
-                            }
-                        }
-
-                        Result.Remove("-");
-                        Result.Add("Value", null);
-
-                        foreach (var criteria in SelectedMapping.JSONMappingCreterias)
-                        {
-                            var vp = criteria.Value.Split('.');
-                            dynamic v = JSONPayload;
-
-                            foreach (var vpp in vp)
-                            {
-                                var r = v[vpp.ToString()];
-                                v = r;
-                            }
-
-                            Result.Add(criteria.Target, criteria.Output);
-
-
-
-                            double payloadDouble;
-                            if (double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out payloadDouble))
-                            {
-                                var tmpPayload = v.ToString().Replace(',', '.');
-
-                                if (Result.ContainsKey("Value"))
-                                    Result["Value"] = Convert.ToDouble(tmpPayload, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
-                                else
-                                    Result.Add("Value", tmpPayload);
-                            }
-                            else
-                            {
-                                if (Result.ContainsKey("Value"))
-                                    Result["Value"] = v.ToString();
-                                else
-                                    Result.Add("Value", v.ToString());
-                            }
-
-
-                            if (SelectedMapping.Extras != null)
-                                foreach (var extra in SelectedMapping.Extras)
-                                {
-                                    if (Result.ContainsKey(extra.Target))
-                                    {
-                                        if (extra.Override)
-                                        {
-                                            Result[extra.Target] = extra.Value;
-                                        }
-                                    }
-                                    else
-                                        Result.Add(extra.Target, extra.Value);
-                                }
-
-                            InsertDataIntoData(SelectedTopic, Result);
-                            Result.Remove(criteria.Target);
-
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        OnLog("While trying to parse input as JSON: " + ex.Message);
-                        OnLog("Trying to parse it as one value.");
-                        ProcessValueType(payload, IncommingTopicParts, SelectedTopic);
-                    }
+                    ProcessJSONType(payload, IncommingTopicParts, SelectedTopic);
                 }
 
 
                 if (SelectedTopic.TimeOut != null)
                     SelectedTopic.TimeOut.LastTime = DateTime.Now;
+
 
             }
             catch (Exception ex)
@@ -373,12 +275,18 @@ namespace MQTTDatabaseProxyCore
                     OnLog("Blocked because of time out: " + String.Join("/", IncommingTopicParts) + ": " + payload);
                     return;
                 }
-
             }
 
 
+            String TableName = SelectedTopic.DBTable;
+
+
             if (String.IsNullOrEmpty(SelectedTopic.DBTable))
-                SelectedTopic.DBTable = SelectedMapping.DBTable;
+                TableName = SelectedMapping.DBTable;
+            else
+                TableName = SelectedTopic.DBTable;
+
+
 
 
 
@@ -443,8 +351,10 @@ namespace MQTTDatabaseProxyCore
                         Result.Add(extra.Target, extra.Value);
                 }
 
-            Result.Remove("-");
 
+
+
+            Result.Remove("-");
 
 
             Dictionary<string, string> TResult = new Dictionary<string, string>();
@@ -457,11 +367,143 @@ namespace MQTTDatabaseProxyCore
                 }
             }
 
-            InsertDataIntoData(SelectedTopic, TResult);
+            InsertDataIntoData(TableName, TResult);
+
+
 
             if (SelectedMapping.TimeOut != null)
                 SelectedMapping.TimeOut.LastTime = DateTime.Now;
         }
+
+
+
+        private void ProcessJSONType(string payload, List<string> IncommingTopicParts, Topic SelectedTopic)
+        {
+            try
+            {
+                var SelectedMapping = GetMatchingJSONMapping(SelectedTopic, SelectedTopic.JSONMappings, IncommingTopicParts, payload);
+
+
+                if (SelectedMapping == null)
+                {
+                    ProcessValueType(payload, IncommingTopicParts, SelectedTopic);
+                    return;
+                }
+
+                if (SelectedMapping.TimeOut != null)
+                {
+                    if (!SelectedMapping.TimeOut.IsTime())
+                    {
+                        OnLog("Blocked because of time out: " + String.Join("/", IncommingTopicParts) + ": " + payload);
+                        return;
+                    }
+                }
+
+                dynamic JSONPayload = JsonConvert.DeserializeObject(payload);
+
+
+                Dictionary<string, string> Result = new Dictionary<string, string>();
+                String TableName = SelectedTopic.DBTable;
+
+
+                if (String.IsNullOrEmpty(SelectedTopic.DBTable))
+                    TableName = SelectedMapping.DBTable;
+                else
+                    TableName = SelectedTopic.DBTable;
+
+
+
+                var OParts = SelectedMapping.Output.Split('/').ToList();
+                var IParts = SelectedMapping.Input.Split('/').ToList();
+
+
+                foreach (var opart in OParts)
+                {
+                    Result.Add(opart, "");
+                }
+
+
+                for (int i = IncommingTopicParts.Count - 1; i >= 0; i--)
+                {
+                    if (IParts[i] == "." || IParts[i] == IncommingTopicParts[i])
+                    {
+                        Result[OParts[i]] = IncommingTopicParts[i];
+                    }
+                    else if (IParts[i] == "-")
+                    {
+                        break;
+                    }
+                }
+
+                Result.Remove("-");
+                Result.Add("Value", null);
+
+                foreach (var criteria in SelectedMapping.JSONMappingCreterias)
+                {
+                    var vp = criteria.Value.Split('.');
+                    dynamic v = JSONPayload;
+
+                    foreach (var vpp in vp)
+                    {
+                        var r = v[vpp.ToString()];
+                        v = r;
+                    }
+
+                    Result.Add(criteria.Target, criteria.Output);
+
+
+
+                    double payloadDouble;
+                    if (double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out payloadDouble))
+                    {
+                        var tmpPayload = v.ToString().Replace(',', '.');
+
+                        if (Result.ContainsKey("Value"))
+                            Result["Value"] = Convert.ToDouble(tmpPayload, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+                        else
+                            Result.Add("Value", tmpPayload);
+                    }
+                    else
+                    {
+                        if (Result.ContainsKey("Value"))
+                            Result["Value"] = v.ToString();
+                        else
+                            Result.Add("Value", v.ToString());
+                    }
+
+
+                    if (SelectedMapping.Extras != null)
+                        foreach (var extra in SelectedMapping.Extras)
+                        {
+                            if (Result.ContainsKey(extra.Target))
+                            {
+                                if (extra.Override)
+                                {
+                                    Result[extra.Target] = extra.Value;
+                                }
+                            }
+                            else
+                                Result.Add(extra.Target, extra.Value);
+                        }
+
+                    InsertDataIntoData(TableName, Result);
+                    Result.Remove(criteria.Target);
+
+
+                    if (SelectedMapping.TimeOut != null)
+                        SelectedMapping.TimeOut.LastTime = DateTime.Now;
+
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog("While trying to parse input as JSON: " + ex.Message);
+                OnLog("Trying to parse it as one value.");
+                ProcessValueType(payload, IncommingTopicParts, SelectedTopic);
+            }
+        }
+
+
 
         Mapping GetMatchingMapping(Topic selectedTopic, List<Mapping> mappings, List<string> IncommingTopicParts, string input)
         {
@@ -504,7 +546,7 @@ namespace MQTTDatabaseProxyCore
 
 
 
-        public void InsertDataIntoData(Topic topic, Dictionary<string, string> data)
+        public void InsertDataIntoData(String Table, Dictionary<string, string> data)
         {
 
             string query = "";
@@ -520,7 +562,7 @@ namespace MQTTDatabaseProxyCore
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
 
-                    query = "INSERT INTO " + topic.DBTable + " (";
+                    query = "INSERT INTO " + Table + " (";
 
                     foreach (var dp in data)
                     {
@@ -543,7 +585,6 @@ namespace MQTTDatabaseProxyCore
                     {
                         connection.Open();
                         command.ExecuteNonQuery();
-                        //connection.Close();
 
                         OnLog("Success on: " + query);
                     }
