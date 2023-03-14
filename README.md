@@ -1,4 +1,4 @@
-# HomeMQTTDatabaseProxy
+# MQTTDatabaseProxy
 
 ### Globalconfig
 
