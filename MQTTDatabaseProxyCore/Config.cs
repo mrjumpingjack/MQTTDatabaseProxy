@@ -104,7 +104,23 @@ namespace MQTTDatabaseProxyCore
         public string DatabaseUser { get; set; }
         public string DatabasePassword { get; set; }
         public string DatabaseName { get; set; }
+        public LogDatabase LogDatabase { get; set; }
+
+        
     }
+
+
+    public class LogDatabase
+    {
+        public string DatabaseUri { get; set; }
+        public string DatabaseUser { get; set; }
+        public string DatabasePassword { get; set; }
+        public string DatabaseName { get; set; }
+
+        public string DBTable { get; set; }
+    }
+
+
 
     public static class SystemExtension
     {

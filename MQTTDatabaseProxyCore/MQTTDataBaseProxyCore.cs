@@ -34,20 +34,21 @@ namespace MQTTDatabaseProxyCore
         }
     }
 
-
     public class MQTTDatabaseProxyCore
     {
-        private IMqttClient client;
         public Config config;
 
         public event EventHandler<LogEventArgs> Log;
+
+
+        private List<IMqttClient> clients = new List<IMqttClient>();
 
         protected virtual void OnLog(String e, bool critical = false)
         {
             EventHandler<LogEventArgs> handler = Log;
             if (handler != null)
             {
-                handler(this, new LogEventArgs(e,critical));
+                handler(this, new LogEventArgs(DateTime.Now + ": " + e, critical));
             }
         }
 
@@ -62,8 +63,6 @@ namespace MQTTDatabaseProxyCore
                     LoadConfig(ConfigPath);
 
                     Connect();
-                    client.DisconnectedAsync += Client_DisconnectedAsync;
-
                 }
                 catch (Exception ex)
                 {
@@ -77,27 +76,30 @@ namespace MQTTDatabaseProxyCore
 
         private async void Connect()
         {
-            OnLog("Client connecting...");
-            if (config != null)
+            try
             {
-                if (config.Topics.Count > 0)
-                    foreach (var topic in config.Topics)
-                    {
-                        await SubscribeToTopicAsync(topic.Ip, topic.Port, topic.User, topic.Password, topic.Name, config.Globalconfig.UserPrefix);
-                    }
+                OnLog("Client connecting...");
+                if (config != null)
+                {
+                    if (config.Topics.Count > 0)
+                        foreach (var topic in config.Topics)
+                        {
+                            await SubscribeToTopicAsync(topic.Ip, topic.Port, topic.User, topic.Password, topic.Name, config.Globalconfig.UserPrefix);
+                        }
+                    else
+                        Log(this, new LogEventArgs("No topics found in config file.", true));
+                }
                 else
-                    Log(this, new LogEventArgs("No topics found in config file.", true));
+                    Log(this, new LogEventArgs("No config found in config file.", true));
+
             }
-            else
-                Log(this, new LogEventArgs("No config found in config file.", true));
+            catch (Exception ex)
+            {
+                OnLog(ex.Message, true);
+            }
         }
 
-        private Task Client_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
-        {
-            OnLog("Client disconnected...");
-            Connect();
-            return Task.CompletedTask;
-        }
+       
 
         private bool LoadConfig(String ConfigPath)
         {
@@ -116,11 +118,14 @@ namespace MQTTDatabaseProxyCore
 
         public async Task SubscribeToTopicAsync(string brokerAddress, int port, string username, string password, string topic, string UserPrefix)
         {
+            IMqttClient client;
             var factory = new MqttFactory();
             client = factory.CreateMqttClient();
 
             client.ApplicationMessageReceivedAsync += Client_ApplicationMessageReceivedAsync;
             client.ConnectedAsync += Client_ConnectedAsync;
+            client.DisconnectedAsync += Client_DisconnectedAsync;
+            
 
             var options = new MqttClientOptionsBuilder()
                 .WithClientId(UserPrefix + "_" + topic)
@@ -135,11 +140,43 @@ namespace MQTTDatabaseProxyCore
                 .Build());
 
             OnLog("Client subcribted to: " + topic);
+
+            clients.Add(client);
+
+            InsertDataIntoDatabase(config.Globalconfig.LogDatabase.DatabaseUri, config.Globalconfig.LogDatabase.DatabaseName, config.Globalconfig.LogDatabase.DatabaseUser,
+               config.Globalconfig.LogDatabase.DatabasePassword, config.Globalconfig.LogDatabase.DBTable, new Dictionary<string, string>() { { "Name", "Connected" }, { "Value", brokerAddress } });
         }
 
         private Task Client_ConnectedAsync(MqttClientConnectedEventArgs arg)
         {
+           
             OnLog("Client connected!");
+            return Task.CompletedTask;
+        }
+
+        private Task Client_DisconnectedAsync(MqttClientDisconnectedEventArgs arg)
+        {
+
+            for (int i = clients.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    if (clients[i].IsConnected)
+                    {
+                        InsertDataIntoDatabase(config.Globalconfig.LogDatabase.DatabaseUri, config.Globalconfig.LogDatabase.DatabaseName, config.Globalconfig.LogDatabase.DatabaseUser,
+                            config.Globalconfig.LogDatabase.DatabasePassword, config.Globalconfig.LogDatabase.DBTable, new Dictionary<string, string>() { { "Name", "Disconnected" }, { "Value", clients[i].Options.ChannelOptions.ToString() + ": " + clients[i].Options.ClientId } });
+
+                        clients[i].ReconnectAsync();
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+
+            OnLog("Client disconnected...");
+
             return Task.CompletedTask;
         }
 
@@ -378,7 +415,7 @@ namespace MQTTDatabaseProxyCore
                 }
             }
 
-            InsertDataIntoData(TableName, TResult);
+            InsertDataIntoDatabase(TableName, TResult);
 
 
 
@@ -497,7 +534,7 @@ namespace MQTTDatabaseProxyCore
                                 Result.Add(extra.Target, extra.Value);
                         }
 
-                    InsertDataIntoData(TableName, Result);
+                    InsertDataIntoDatabase(TableName, Result);
                     Result.Remove(criteria.Target);
 
 
@@ -557,7 +594,13 @@ namespace MQTTDatabaseProxyCore
 
 
 
-        public void InsertDataIntoData(String Table, Dictionary<string, string> data)
+        public void InsertDataIntoDatabase(string Table, Dictionary<string, string> data)
+        {
+            InsertDataIntoDatabase(config.Globalconfig.DatabaseUri,config.Globalconfig.DatabaseName, config.Globalconfig.DatabaseUser, config.Globalconfig.DatabasePassword, Table, data);
+        }
+
+
+        public void InsertDataIntoDatabase(string databaseUri, string dataBase, string username, string password, string table, Dictionary<string, string> data)
         {
 
             string query = "";
@@ -565,15 +608,15 @@ namespace MQTTDatabaseProxyCore
             try
             {
                 string connectionString =
-                    "Server=" + config.Globalconfig.DatabaseUri +
-                    ";Database=" + config.Globalconfig.DatabaseName +
-                    ";user=" + config.Globalconfig.DatabaseUser +
-                    ";password=" + config.Globalconfig.DatabasePassword + ";";
+                    "Server=" + databaseUri +
+                    ";Database=" + dataBase +
+                    ";user=" + username +
+                    ";password=" + password + ";";
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
 
-                    query = "INSERT INTO " + Table + " (";
+                    query = "INSERT INTO " + table + " (";
 
                     foreach (var dp in data)
                     {
@@ -608,6 +651,9 @@ namespace MQTTDatabaseProxyCore
                 OnLog(ex.Message, true);
             }
         }
+
+
+       
 
     }
 }
