@@ -772,10 +772,11 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    string query = "SELECT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_SCHEMA LIKE '" + table + "';";
-
+                    string query = "SHOW TABLES LIKE '" + table + "';";
+                    
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
+                        connection.Open();
                         using (MySqlDataReader reader = command.ExecuteReader())
                         {
                             if (reader.HasRows)
@@ -806,7 +807,7 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, timestamp timestamp PRIMARY KEY (id));";
+                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, `creation_time` DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id));";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
