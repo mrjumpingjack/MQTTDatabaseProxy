@@ -604,9 +604,16 @@ namespace MQTTDatabaseProxyCore
         public void InsertDataIntoDatabase(string databaseUri, string dataBase, string username, string password, string table, Dictionary<string, string> data)
         {
 
-            bool TableExsists = CheckTableExsists(databaseUri, dataBase, username, password, table);
+            if (!CheckDatabaseExsits(databaseUri, dataBase, username, password))
+            {
+                if (!CreateDatabase(databaseUri, dataBase, username, password))
+                {
+                    OnLog("Database " + dataBase + " could not be created");
+                    return;
+                }
+            }
 
-            if (!TableExsists)
+            if (!CheckTableExsists(databaseUri, dataBase, username, password, table))
             {
                 if (!CreateTable(databaseUri, dataBase, username, password, table))
                 {
@@ -614,18 +621,20 @@ namespace MQTTDatabaseProxyCore
                     return;
                 }
             }
-            else
+
+            foreach (var col in data)
             {
-                foreach (var col in data)
+                if (!CheckColumnExists(databaseUri, dataBase, username, password, table, col.Key))
                 {
-                    if (!CheckColumnExists(databaseUri, dataBase, username, password, table, col.Key))
+                    if (!AddColumnToTable(databaseUri, dataBase, username, password, table, col.Key))
                     {
-                        if (!AddColumnToTable(databaseUri, dataBase, username, password, table, col.Key))
-                            return;
+                        OnLog("Column " + col + " could not be created in table " + table + " in database " + dataBase);
+                        return;
                     }
                 }
             }
-            
+
+
 
 
 
@@ -677,7 +686,7 @@ namespace MQTTDatabaseProxyCore
 
 
 
-        public bool CheckTableExsists(string databaseUri, string dataBase, string username, string password, string table)
+        public bool CheckDatabaseExsits(string databaseUri, string dataBase, string username, string password)
         {
             try
             {
@@ -689,7 +698,44 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    string query = "SELECT * FROM " + table + ";";
+                    string query = "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '" + dataBase + "'";
+
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        connection.Open();
+
+                        using (MySqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (reader.HasRows)
+                                return true;
+                            else
+                                return false;
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
+        public bool CreateDatabase(string databaseUri, string dataBase, string username, string password)
+        {
+
+            try
+            {
+                string connectionString =
+                    "Server=" + databaseUri +
+                    ";Database=" + dataBase +
+                    ";user=" + username +
+                    ";password=" + password + ";";
+
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    String query = "CREATE DATABASE IF NOT EXISTS "+dataBase+";";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
@@ -706,8 +752,47 @@ namespace MQTTDatabaseProxyCore
             {
                 return false;
             }
+
+
         }
 
+
+
+
+
+
+        public bool CheckTableExsists(string databaseUri, string dataBase, string username, string password, string table)
+        {
+            try
+            {
+                string connectionString =
+                    "Server=" + databaseUri +
+                    ";Database=" + dataBase +
+                    ";user=" + username +
+                    ";password=" + password + ";";
+
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    string query = "SELECT TABLE_SCHEMA FROM information_schema.TABLES WHERE TABLE_SCHEMA LIKE '" + table + "';";
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        using (MySqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (reader.HasRows)
+                                return true;
+                            else
+                                return false;
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
 
         public bool CreateTable(string databaseUri, string dataBase, string username, string password, string table)
         {
@@ -722,7 +807,7 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, PRIMARY KEY (id));";
+                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, timestamp timestamp PRIMARY KEY (id));";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
