@@ -4,6 +4,7 @@ using MySqlConnector;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.OleDb;
 using System.Diagnostics.Eventing.Reader;
@@ -66,7 +67,7 @@ namespace MQTTDatabaseProxyCore
                 }
                 catch (Exception ex)
                 {
-                   OnLog(ex.Message,true);
+                    OnLog(ex.Message, true);
                 }
             });
 
@@ -99,7 +100,7 @@ namespace MQTTDatabaseProxyCore
             }
         }
 
-       
+
 
         private bool LoadConfig(String ConfigPath)
         {
@@ -125,7 +126,7 @@ namespace MQTTDatabaseProxyCore
             client.ApplicationMessageReceivedAsync += Client_ApplicationMessageReceivedAsync;
             client.ConnectedAsync += Client_ConnectedAsync;
             client.DisconnectedAsync += Client_DisconnectedAsync;
-            
+
 
             var options = new MqttClientOptionsBuilder()
                 .WithClientId(UserPrefix + "_" + topic)
@@ -149,7 +150,7 @@ namespace MQTTDatabaseProxyCore
 
         private Task Client_ConnectedAsync(MqttClientConnectedEventArgs arg)
         {
-           
+
             OnLog("Client connected!");
             return Task.CompletedTask;
         }
@@ -596,14 +597,36 @@ namespace MQTTDatabaseProxyCore
 
         public void InsertDataIntoDatabase(string Table, Dictionary<string, string> data)
         {
-            InsertDataIntoDatabase(config.Globalconfig.DatabaseUri,config.Globalconfig.DatabaseName, config.Globalconfig.DatabaseUser, config.Globalconfig.DatabasePassword, Table, data);
+            InsertDataIntoDatabase(config.Globalconfig.DatabaseUri, config.Globalconfig.DatabaseName, config.Globalconfig.DatabaseUser, config.Globalconfig.DatabasePassword, Table, data);
         }
 
 
         public void InsertDataIntoDatabase(string databaseUri, string dataBase, string username, string password, string table, Dictionary<string, string> data)
         {
 
-            string query = "";
+            bool TableExsists = CheckTableExsists(databaseUri, dataBase, username, password, table);
+
+            if (!TableExsists)
+            {
+                if (!CreateTable(databaseUri, dataBase, username, password, table))
+                {
+                    OnLog("Table " + table + " could not be created in database " + dataBase);
+                    return;
+                }
+                else
+                {
+                    foreach (var col in data)
+                    {
+                        if (!CheckColumnExists(databaseUri, dataBase, username, password, table, col.Key))
+                        {
+                            if (!AddColumnToTable(databaseUri, dataBase, username, password, table, col.Key))
+                                return;
+                        }
+                    }
+                }
+            }
+
+
 
             try
             {
@@ -616,7 +639,7 @@ namespace MQTTDatabaseProxyCore
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
 
-                    query = "INSERT INTO " + table + " (";
+                    string query = "INSERT INTO " + table + " (";
 
                     foreach (var dp in data)
                     {
@@ -648,12 +671,129 @@ namespace MQTTDatabaseProxyCore
             catch (Exception ex)
             {
                 OnLog(ex.Message, true);
-                OnLog(ex.Message, true);
             }
         }
 
 
-       
+
+        public bool CheckTableExsists(string databaseUri, string dataBase, string username, string password, string table)
+        {
+            try
+            {
+                string connectionString =
+                    "Server=" + databaseUri +
+                    ";Database=" + dataBase +
+                    ";user=" + username +
+                    ";password=" + password + ";";
+
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    string query = "SELECT * FROM " + table + ";";
+
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        connection.Open();
+                        command.ExecuteNonQuery();
+
+                        return true;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
+
+        public bool CreateTable(string databaseUri, string dataBase, string username, string password, string table)
+        {
+            try
+            {
+                string connectionString =
+                    "Server=" + databaseUri +
+                    ";Database=" + dataBase +
+                    ";user=" + username +
+                    ";password=" + password + ";";
+
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    String query = "CREATE TABLE '" + table + "';";
+
+
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        connection.Open();
+                        command.ExecuteNonQuery();
+
+                        return true;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+
+
+        }
+
+
+
+        public bool CheckColumnExists(string databaseUri, string dataBase, string username, string password, string table, string ColName)
+        {
+            string connectionString =
+                  "Server=" + databaseUri +
+                  ";Database=" + dataBase +
+                  ";user=" + username +
+                  ";password=" + password + ";";
+
+            using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {
+                using (MySqlCommand command = new MySqlCommand("SHOW COLUMNS FROM `" + dataBase + "` LIKE '" + ColName + "';", connection))
+                {
+                    using (MySqlDataReader reader = command.ExecuteReader())
+                    {
+                        if (reader.HasRows)
+                            return true;
+                        else
+                            return false;
+                    }
+                }
+            }
+        }
+
+        public bool AddColumnToTable(string databaseUri, string dataBase, string username, string password, string table, string ColumnName)
+        {
+            try
+            {
+                string connectionString =
+                  "Server=" + databaseUri +
+                  ";Database=" + dataBase +
+                  ";user=" + username +
+                  ";password=" + password + ";";
+
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+
+                    using (MySqlCommand command = new MySqlCommand("ALTER TABLE `" + table + "` ADD `" + ColumnName + "` string(100);", connection))
+                    {
+                        command.ExecuteNonQuery();
+
+                    }
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                OnLog("Failed to create column " + ColumnName + " into " + dataBase);
+                return false;
+            }
+        }
+
 
     }
 }
