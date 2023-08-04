@@ -613,18 +613,19 @@ namespace MQTTDatabaseProxyCore
                     OnLog("Table " + table + " could not be created in database " + dataBase);
                     return;
                 }
-                else
+            }
+            else
+            {
+                foreach (var col in data)
                 {
-                    foreach (var col in data)
+                    if (!CheckColumnExists(databaseUri, dataBase, username, password, table, col.Key))
                     {
-                        if (!CheckColumnExists(databaseUri, dataBase, username, password, table, col.Key))
-                        {
-                            if (!AddColumnToTable(databaseUri, dataBase, username, password, table, col.Key))
-                                return;
-                        }
+                        if (!AddColumnToTable(databaseUri, dataBase, username, password, table, col.Key))
+                            return;
                     }
                 }
             }
+            
 
 
 
@@ -710,6 +711,7 @@ namespace MQTTDatabaseProxyCore
 
         public bool CreateTable(string databaseUri, string dataBase, string username, string password, string table)
         {
+
             try
             {
                 string connectionString =
@@ -720,7 +722,7 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    String query = "CREATE TABLE '" + table + "';";
+                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, PRIMARY KEY (id));";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
@@ -753,8 +755,9 @@ namespace MQTTDatabaseProxyCore
 
             using (MySqlConnection connection = new MySqlConnection(connectionString))
             {
-                using (MySqlCommand command = new MySqlCommand("SHOW COLUMNS FROM `" + dataBase + "` LIKE '" + ColName + "';", connection))
+                using (MySqlCommand command = new MySqlCommand("SHOW COLUMNS FROM `" + table + "` LIKE '" + ColName + "';", connection))
                 {
+                    connection.Open();
                     using (MySqlDataReader reader = command.ExecuteReader())
                     {
                         if (reader.HasRows)
@@ -779,8 +782,9 @@ namespace MQTTDatabaseProxyCore
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
 
-                    using (MySqlCommand command = new MySqlCommand("ALTER TABLE `" + table + "` ADD `" + ColumnName + "` string(100);", connection))
+                    using (MySqlCommand command = new MySqlCommand("ALTER TABLE " + table + " ADD `" + ColumnName + "` text(100);", connection))
                     {
+                        connection.Open();
                         command.ExecuteNonQuery();
 
                     }
