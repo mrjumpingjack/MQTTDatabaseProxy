@@ -807,7 +807,7 @@ namespace MQTTDatabaseProxyCore
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, `creation_time` DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id));";
+                    String query = "CREATE TABLE " + table + " (id int NOT NULL AUTO_INCREMENT, `timestamp` timestamp DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id));";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
