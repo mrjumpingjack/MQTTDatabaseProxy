@@ -729,13 +729,12 @@ namespace MQTTDatabaseProxyCore
             {
                 string connectionString =
                     "Server=" + databaseUri +
-                    ";Database=" + dataBase +
                     ";user=" + username +
                     ";password=" + password + ";";
 
                 using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
-                    String query = "CREATE DATABASE IF NOT EXISTS "+dataBase+";";
+                    String query = "CREATE DATABASE IF NOT EXISTS "+ dataBase+";";
 
 
                     using (MySqlCommand command = new MySqlCommand(query, connection))
